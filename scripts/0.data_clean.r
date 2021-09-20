@@ -49,6 +49,7 @@ df_meta$Host_sim <- gsub("\\(鸡\\)", "", df_meta$Host_sim)
 df_meta$Host_sim[1:14] <- "Other wild birds"
 
 write_csv(df_meta, "../data/df_metadata.csv")
+writexl::write_xlsx(df_meta, "../data/df_metadata.xlsx")
 
 # reconcile strain name
 check <- sapply(names(seq_fullg), function(x){
@@ -101,3 +102,7 @@ names(seq_ref) <- "M95169-IBV"
 
 writeXStringSet(c(seq_ref, seq_fullg), "../data/seq_full_genome.fasta")
 writeXStringSet(c(seq_spike_ref, seq_spike), "../data/seq_spike.fasta")
+
+
+
+

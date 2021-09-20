@@ -9,7 +9,8 @@ library(SynMut)
 library(seqinr)
 # library(future.apply)
 library(ggrepel)
-
+library(ggalt)
+source("../../2021-08-26_save_pptx/scripts/save_pptx.r")
 
 # input data --------------------------------------------------------------
 meta_data_raw <- read_csv("../data/df_metadata.csv")
@@ -52,6 +53,8 @@ ggplot() +
     geom_vline(xintercept = 0.5, linetype = 2) +
     xlab("GC content")
 meta_data <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), gc_content=gc_content))
+writexl::write_xlsx(meta_data, "../results/metadata.xlsx")
+
 df_plot <- meta_data %>% group_by(Host_sim) %>% filter(n()>1)
 ggplot(df_plot) +
     geom_density(aes(x = gc_content, fill = Host_sim), n = 60, alpha=0.8) +
@@ -61,6 +64,8 @@ ggplot(df_plot) +
 	scale_fill_manual(name="Host", values=df_plot$color)+
     xlab("GC content")
 ggsave("../results/gc_content_by_host_spike.pdf",
+       width = 8, height = 6)
+save_pptx("../results/gc_content_by_host_spike.pptx",
        width = 8, height = 6)
 
 # Global CA model --------------------------------------------------------
@@ -72,6 +77,7 @@ cumsum(pti)
 
 get_eigenvalue(tuco.coa)
 fviz_screeplot(tuco.coa,addlabels = TRUE, ylim = c(0, 30))
+ggsave("../results/codon_usage_spike_scree_plot.pdf", width=8, height=6)
 
 ### We may say here,
 # for instance, that F1 takes into account 39.2% of the
@@ -111,218 +117,76 @@ ggplot(tmp_df)+
 	NULL
 
 ggsave("../results/codon_usage_spike.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_spike.pptx", width=8, height=8)
+
 
 # within and between CA ---------------------------------------------------
-
-ttuco.coa <- dudi.coa(t(df_cu), scannf = FALSE, nf = 5)
 fac_codon <- factor(Biostrings::GENETIC_CODE[colnames(df_cu)])
-ttuco.wca <- wca(ttuco.coa, fac_codon, scan = FALSE, nf = 5)
-ttuco.bca <- bca(ttuco.coa, fac_codon, scan = FALSE, nf = 5)
+tuco <- df_cu
 
-
+## spike
+ttuco.coa_s <- dudi.coa(t(df_cu), scannf = FALSE, nf = 5)
+ttuco.wca_s <- wca(ttuco.coa_s, fac_codon, scan = FALSE, nf = 5)
+ttuco.bca_s <- bca(ttuco.coa_s, fac_codon, scan = FALSE, nf = 5)
 ##  variability at the synonymous level & at the amino acid level
-100*sum(ttuco.wca$eig)/sum(ttuco.coa$eig)
-100*sum(ttuco.bca$eig)/sum(ttuco.coa$eig)
-
-##  express the contributions to the structured variability
-(nrow(df_cu) - 1)*(ncol(df_cu) - 1)/sum(df_cu) -> exptoti
-(nrow(df_cu) - 1)*(ncol(df_cu) - length(levels(fac_codon)))/sum(df_cu) ->
-    exptotiw
-(nrow(df_cu) - 1)*(length(levels(fac_codon)) - 1)/sum(df_cu) -> exptotib
-### all.equal(exptoti, exptotiw + exptotib) is TRUE
-###  there is more variability taken into account at the synonymous level than at the amino acid level
-100*(sum(ttuco.wca$eig) - exptotiw)/(sum(ttuco.coa$eig) - exptoti)
-100*(sum(ttuco.bca$eig) - exptotib)/(sum(ttuco.coa$eig) - exptoti)
-
-
+100 * sum(ttuco.wca_s$eig) / sum(ttuco.coa_s$eig)
+100 * sum(ttuco.bca_s$eig) / sum(ttuco.coa_s$eig)
 # Synonymous codon usage (WCA) --------------------------------------------
 ## F1
 ### Coding sequences point of view
-screeplot(ttuco.wca)
-(pti <-100*ttuco.wca$eig[1:5]/sum(ttuco.wca$eig))
-cumsum(pti)
 
-F1 <- ttuco.wca$co[,1]
-hist(F1)
-ggplot()+
-    geom_density(aes(x = F1, fill = meta_data$Gene), alpha = 0.3) 
-ggplot()+
-    geom_density(aes(x = F1, fill = meta_data$Host), alpha = 0.3) 
-ggplot(meta_data)+
-    geom_density(aes(x = F1, fill = meta_data$Host), alpha = 0.8) +
-    facet_wrap(vars(Gene))
-ggplot(meta_data)+
-    geom_density(aes(x = F1, fill = meta_data$Host), alpha = 0.8) +
-    facet_grid(vars(Host), vars(Gene), scales = "free_y")
+F1 <- rep(NA, nrow(meta_data))
+F1 <- ttuco.wca_s$co[, 1]
+F2 <- rep(NA, nrow(meta_data))
+F2 <- ttuco.wca_s$co[, 2]
+F3 <- rep(NA, nrow(meta_data))
+F3 <- ttuco.wca_s$co[, 3]
+tmp_df <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), F1=F1, F2=F2, F3=F3))
 
-ggplot(meta_data)+ # gc_content
-    geom_point(aes(x = F1, y = gc_content, color = meta_data$Gene), 
-               alpha = 0.3)
-tmp <- lm(F1~gc_content)
-summary(tmp)
+kmodel <- kmeans(tmp_df %>% select(F1, F2) %>% filter(!is.na(F1)), centers = 4, nstart = 2000, iter.max = 1000)
+tmp_df$cluster <- NA
+tmp_df$cluster[!is.na(tmp_df$F1)] <- kmodel$cluster
+tmp_df$cluster <- factor(tmp_df$cluster)
 
-F2 <- ttuco.wca$co[,2]
-F3 <- ttuco.wca$co[,3]
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = cluster), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim, shape = cluster), alpha = 0.8) +
+    geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
+    scale_color_manual(name="Host", values=tmp_df$color)+
+    scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("A. WCA (synonymous codon usage)")
 
-ggplot(meta_data)+
-    geom_density(aes(x = F2, fill = meta_data$Gene), alpha = 0.8) +
-    facet_wrap(vars(Gene))
-
-ggplot(meta_data)+
-    geom_density(aes(x = F2, fill = meta_data$Host), alpha = 0.8) + 
-    facet_wrap(vars(Host))
-
-ggplot(meta_data)+
-    geom_density(aes(x = F2, fill = meta_data$Host), alpha = 0.8) + 
-    facet_wrap(vars(Gene))
-
-tmp_df <- bind_cols(meta_data, F1=F1, F2=F2)
-tmp_df$Type <- ifelse(tmp_df$`Virus Species`=="2019-nCoV", "2019-nCoV", "Others")
-tmp_df$Type <- factor(tmp_df$Type, levels = c("Others", "2019-nCoV"))
-idx_s <- which(tmp_df$id=="MN908947" & tmp_df$Gene=="spike")
-tmp_df <- tmp_df %>% mutate(dist_s = sqrt((F1-F1[idx_s])^2+(F2-F2[idx_s])^2))
-
-ggplot(tmp_df)+ 
-    geom_point(aes(x = F1, y = F2, color = Host, shape = Type), 
-               alpha = 0.3) +
-    geom_text_repel(aes(x = F1, y = F2, label = "2019-nCoV"), 
-                    data = filter(tmp_df, id=="MN908947"),
-                    nudge_x = 0.5, nudge_y = 0.5)+
-    geom_text_repel(aes(x = F1, y = F2, label = Host), 
-                    data = tmp_df %>% filter(Gene == tmp_df$Gene[idx_s],
-                                             `Virus Species`!="2019-nCoV") %>% 
-                        arrange(dist_s) %>% .[1:2,],
-                    nudge_x = 0.5, nudge_y = -0.1)+
-    scale_color_viridis_d()
-
-ggplot(tmp_df)+ 
-    geom_point(aes(x = F1, y = F2, color = `Virus Species`, shape = Type), 
-               alpha = 0.3) +
-    geom_text_repel(aes(x = F1, y = F2, label = "2019-nCoV"), 
-                    data = filter(tmp_df, id=="MN908947"),
-                    nudge_x = 0.5, nudge_y = 0.5)+
-    geom_text_repel(aes(x = F1, y = F2, label = `Virus Species`), 
-                    data = tmp_df %>% filter(Gene == tmp_df$Gene[idx_s],
-                                             `Virus Species`!="2019-nCoV") %>% 
-                        arrange(dist_s) %>% .[1:2,],
-                    nudge_x = 0.5, nudge_y = -0.1)+
-    scale_color_viridis_d()
-
-ggplot(meta_data)+ # synonymous codon usage difference between avian and swine
-    geom_point(aes(x = F1, y = F2, color = meta_data$species_major), 
-               alpha = 0.3) +
-    facet_wrap(vars(Gene))
-
-### Codon point of view
-### F1
-x <- ttuco.wca$li[,1]
-total_num <- apply(df_cu,2,sum)
-x_levels <- rownames(tuco.coa$co)[order(x)]
-total_num <- total_num[order(x)]
-y <- factor(x_levels, levels = x_levels)
-F1 <- x[order(x)]
-group <- sapply(x_levels, function(x){
-    seqinr::s2c(x)[3]
-})
-# group <- ifelse(group %in% c("A", "T"), "A or T", "C or G")
-
-ggplot() + # codon end with C 
-    geom_point(aes(x = F1, y = y, color = group,
-                   size = total_num), alpha = 0.5) +
-    ylab("")
-ggsave("../results/CLEVELANDs_dot_plot_WCA_F1.tiff",
-       width = 5,
-       height = 9,
-       dpi = 300,
-       compress = "lzw")   
-### F2
-x <- ttuco.wca$li[,2]
-total_num <- apply(df_cu,2,sum)
-x_levels <- rownames(tuco.coa$co)[order(x)]
-total_num <- total_num[order(x)]
-y <- factor(x_levels, levels = x_levels)
-F2 <- x[order(x)]
-group <- sapply(x_levels, function(x){
-    seqinr::s2c(x)[3]
-})
-# group <- ifelse(group %in% c("C", "T"), "C or T", "A or G")
-
-ggplot() + # codon end with A
-    geom_point(aes(x = F2, y = y, color = group,
-                   size = total_num), alpha = 0.5) +
-    ylab("")
-ggsave("../results/CLEVELANDs_dot_plot_WCA_F2.tiff",
-       width = 5,
-       height = 9,
-       dpi = 300,
-       compress = "lzw")  
+ggsave("../results/codon_usage_spike_WCA.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_spike_WCA.pptx", width=8, height=8)
 
 # Amino acid usage (BCA) --------------------------------------------------
-screeplot(ttuco.bca)
-(pti <-100*ttuco.bca$eig[1:5]/sum(ttuco.bca$eig))
-cumsum(pti)
 
 ### Coding sequences point of view
 #### F1 F2
-F1 <- ttuco.bca$co[,1]
-F2 <- ttuco.bca$co[,2]
+F1 <- rep(NA, nrow(meta_data))
+F1 <- ttuco.bca_s$co[, 1]
+F2 <- rep(NA, nrow(meta_data))
+F2 <- ttuco.bca_s$co[, 2]
+F3 <- rep(NA, nrow(meta_data))
+F3 <- ttuco.bca_s$co[, 3]
+tmp_df <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), F1=F1, F2=F2, F3=F3))
 
-ggplot()+ # nucleocapsid
-    geom_density(aes(x = F1, fill = meta_data$Gene), alpha = 0.3) 
-ggplot()+ # membrane and spike
-    geom_density(aes(x = F2, fill = meta_data$Gene), alpha = 0.3) 
+kmodel <- kmeans(tmp_df %>% select(F1, F2) %>% filter(!is.na(F1)), centers = 4, nstart = 2000, iter.max = 1000)
+tmp_df$cluster <- NA
+tmp_df$cluster[!is.na(tmp_df$F1)] <- kmodel$cluster
+tmp_df$cluster <- factor(tmp_df$cluster)
 
-ggplot() +
-    geom_point(aes(x = F1, y = kd, color = meta_data$Gene), alpha = 0.3) + 
-    geom_smooth(aes(x = F1, y = kd), method = "lm")
-tmp <- lm(kd~F1)
-summary(tmp)
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = cluster), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim, shape = cluster), alpha = 0.8) +
+    geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
+    scale_color_manual(name="Host", values=tmp_df$color)+
+    scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("B. BCA (amino acid usage)")
 
-# ggplot(meta_data)+
-#     geom_density(aes(x = F1, fill = meta_data$Gene), alpha = 0.8) +
-#     facet_wrap(vars(Gene))
-
-tmp_df <- bind_cols(meta_data, F1=F1, F2=F2)
-tmp_df$Type <- ifelse(tmp_df$`Virus Species`=="2019-nCoV", "2019-nCoV", "Others")
-tmp_df$Type <- factor(tmp_df$Type, levels = c("Others", "2019-nCoV"))
-idx_s <- which(tmp_df$id=="MN908947" & tmp_df$Gene=="spike")
-tmp_df <- tmp_df %>% mutate(dist_s = sqrt((F1-F1[idx_s])^2+(F2-F2[idx_s])^2))
-
-ggplot(tmp_df)+ 
-    geom_point(aes(x = F1, y = F2, color = Host, shape = Type), 
-               alpha = 0.3) +
-    geom_text_repel(aes(x = F1, y = F2, label = "2019-nCoV"), 
-                    data = filter(tmp_df, id=="MN908947"),
-                    nudge_x = 0.5, nudge_y = 0.5)+
-    geom_text_repel(aes(x = F1, y = F2, label = Host), 
-                    data = tmp_df %>% filter(Gene == tmp_df$Gene[idx_s],
-                                             `Virus Species`!="2019-nCoV") %>% 
-                        arrange(dist_s) %>% .[1:2,],
-                    nudge_x = 0.5, nudge_y = -0.1)+
-    scale_color_viridis_d()
-
-ggplot(tmp_df)+ 
-    geom_point(aes(x = F1, y = F2, color = `Virus Species`, shape = Type), 
-               alpha = 0.3) +
-    geom_text_repel(aes(x = F1, y = F2, label = "2019-nCoV"), 
-                    data = filter(tmp_df, id=="MN908947"),
-                    nudge_x = 0.5, nudge_y = 0.5)+
-    geom_text_repel(aes(x = F1, y = F2, label = `Virus Species`), 
-                    data = tmp_df %>% filter(Gene == tmp_df$Gene[idx_s],
-                                             `Virus Species`!="2019-nCoV") %>% 
-                        arrange(dist_s) %>% .[1:2,],
-                    nudge_x = 0.5, nudge_y = -0.1)+
-    scale_color_viridis_d()
-
-### Amino acid point of view
-#### F1 F2
-F1_aa <- ttuco.bca$li[,1]
-F2_aa <- ttuco.bca$li[,2]
-levels(fac_codon)
-ttuco.bca$lw
-EXP$KD ##TODO
-
-ggplot()+ 
-    geom_point(aes(x = F1, y = F2, color = meta_data$Gene), 
-               alpha = 0.3, data = meta_data)+
-    geom_point(aes(x = F1_aa, y = F2_aa, size = 10*ttuco.bca$lw),alpha = 0.3)
+ggsave("../results/codon_usage_spike_BCA.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_spike_BCA.pptx", width=8, height=8)
