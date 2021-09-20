@@ -110,14 +110,38 @@ tmp_df <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), F1=F1
 # tmp_df <- tmp_df %>% mutate(dist_s = sqrt((F1-F1[idx_s])^2+(F2-F2[idx_s])^2))
 
 tmp_df <- tmp_df %>% filter(!is.na(F1))
-ggplot(tmp_df)+ 
-    geom_point(aes(x = F1, y = F2, color = Host_sim), alpha = 0.8) +
+
+kmodel <- kmeans(tmp_df %>% select(F1, F2) %>% filter(!is.na(F1)), centers = 4, nstart = 2000, iter.max = 1000)
+tmp_df$cluster <- NA
+tmp_df$cluster[!is.na(tmp_df$F1)] <- kmodel$cluster
+tmp_df$cluster <- factor(tmp_df$cluster)
+
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = cluster), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim, shape = cluster), alpha = 0.8) +
     geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
     scale_color_manual(name="Host", values=tmp_df$color)+
-	NULL
+    scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("A. WCA (synonymous codon usage)")
 
 ggsave("../results/codon_usage_spike.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_spike.pptx", width=8, height=8)
+
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = Host_sim, fill = Host_sim), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim), alpha = 0.8) +
+    geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
+    scale_color_manual(name="Host", values=tmp_df$color)+
+    scale_fill_manual(name="Host", values=tmp_df$color)+
+    # scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("A. WCA (synonymous codon usage)")
+
+ggsave("../results/codon_usage_host.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_host.pptx", width=8, height=8)
 
 
 # within and between CA ---------------------------------------------------
@@ -161,6 +185,20 @@ ggplot(tmp_df) +
 ggsave("../results/codon_usage_spike_WCA.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_spike_WCA.pptx", width=8, height=8)
 
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = Host_sim, fill = Host_sim), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim), alpha = 0.8) +
+    geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
+    scale_color_manual(name="Host", values=tmp_df$color)+
+    scale_fill_manual(name="Host", values=tmp_df$color)+
+    # scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("A. WCA (synonymous codon usage)")
+
+ggsave("../results/codon_usage_spike_WCA_host.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_spike_WCA_host.pptx", width=8, height=8)
+
 # Amino acid usage (BCA) --------------------------------------------------
 
 ### Coding sequences point of view
@@ -190,3 +228,17 @@ ggplot(tmp_df) +
 
 ggsave("../results/codon_usage_spike_BCA.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_spike_BCA.pptx", width=8, height=8)
+
+ggplot(tmp_df) +
+    geom_encircle(aes(x = F1, y = F2, group = Host_sim, fill = Host_sim), linetype = 2, alpha = 0.6, expand = 0.01, spread = 0.001) +
+    geom_point(aes(x = F1, y = F2, color = Host_sim), alpha = 0.8) +
+    geom_text_repel(aes(x = F1, y = F2, label = Strain_Name_sim), data = filter(tmp_df, Strain_Name_sim %in% c("ISU73347", "F230-2006", "CHN-AH-2004", "HNZK-02", "0256-1-2015")), min.segment.length = 0.1)+
+    scale_color_manual(name="Host", values=tmp_df$color)+
+    scale_fill_manual(name="Host", values=tmp_df$color)+
+    # scale_shape_discrete(name="Cluster", na.translate = F)+
+    scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
+    scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
+    ggtitle("B. BCA (amino acid usage)")
+
+ggsave("../results/codon_usage_spike_BCA_host.pdf", width=8, height=8)
+save_pptx("../results/codon_usage_spike_BCA_host.pptx", width=8, height=8)
