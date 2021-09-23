@@ -14,7 +14,10 @@ source("../../2021-08-26_save_pptx/scripts/save_pptx.r")
 
 # input data --------------------------------------------------------------
 meta_data_raw <- read_csv("../data/df_metadata.csv")
-cds_omsn <- readDNAStringSet("../data/seq_spike_aln.fasta")
+cds_omsn <- readDNAStringSet("../data/seq_spike.fasta")
+cds_omsn <- cds_omsn[-1]
+width(cds_omsn)%%3
+# cds_omsn <- readDNAStringSet("../data/seq_spike_aln.fasta") # please make sure that the alignment is correct in terms of codon position
 
 colors <- c("#8f45b5",
 "#aada53",
@@ -27,7 +30,12 @@ colors <- c("#8f45b5",
 names(colors) <- unique(meta_data_raw$Host_sim)
 meta_data_raw$color <- colors[match(meta_data_raw$Host_sim, names(colors))]
 
-df_cu_ori <- as_tibble(get_cu(cds_omsn))
+df_cu_ori <- as_tibble(get_cu(cds_omsn)) # please make sure that the alignment is correct in terms of codon position
+df_out <- df_cu_ori
+df_out$seq_name <- names(cds_omsn)
+df_out <- df_out %>% select(seq_name, everything())
+
+writexl::write_xlsx(df_out, "../results/df_codon_count.xlsx")
 
 ## remove stp codon
 df_cu <- df_cu_ori %>% select(-TAA, -TGA, -TAG)
@@ -124,7 +132,7 @@ ggplot(tmp_df) +
     scale_shape_discrete(name="Cluster", na.translate = F)+
     scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
     scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
-    ggtitle("A. WCA (synonymous codon usage)")
+    ggtitle("CA")
 
 ggsave("../results/codon_usage_spike.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_spike.pptx", width=8, height=8)
@@ -138,7 +146,7 @@ ggplot(tmp_df) +
     # scale_shape_discrete(name="Cluster", na.translate = F)+
     scale_x_continuous(limits = c(-max(abs(tmp_df$F1), na.rm=T), max(abs(tmp_df$F1), na.rm=T)))+
     scale_y_continuous(limits = c(-max(abs(tmp_df$F2), na.rm=T), max(abs(tmp_df$F2), na.rm=T)))+
-    ggtitle("A. WCA (synonymous codon usage)")
+    ggtitle("CA")
 
 ggsave("../results/codon_usage_host.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_host.pptx", width=8, height=8)
@@ -166,6 +174,7 @@ F2 <- ttuco.wca_s$co[, 2]
 F3 <- rep(NA, nrow(meta_data))
 F3 <- ttuco.wca_s$co[, 3]
 tmp_df <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), F1=F1, F2=F2, F3=F3))
+tmp_df <- tmp_df %>% filter(!is.na(F1))
 
 kmodel <- kmeans(tmp_df %>% select(F1, F2) %>% filter(!is.na(F1)), centers = 4, nstart = 2000, iter.max = 1000)
 tmp_df$cluster <- NA
@@ -210,6 +219,7 @@ F2 <- ttuco.bca_s$co[, 2]
 F3 <- rep(NA, nrow(meta_data))
 F3 <- ttuco.bca_s$co[, 3]
 tmp_df <- left_join(meta_data_raw, tibble(Strain_Name_sim=names(cds_omsn), F1=F1, F2=F2, F3=F3))
+tmp_df <- tmp_df %>% filter(!is.na(F1))
 
 kmodel <- kmeans(tmp_df %>% select(F1, F2) %>% filter(!is.na(F1)), centers = 4, nstart = 2000, iter.max = 1000)
 tmp_df$cluster <- NA
@@ -242,3 +252,5 @@ ggplot(tmp_df) +
 
 ggsave("../results/codon_usage_spike_BCA_host.pdf", width=8, height=8)
 save_pptx("../results/codon_usage_spike_BCA_host.pptx", width=8, height=8)
+
+
