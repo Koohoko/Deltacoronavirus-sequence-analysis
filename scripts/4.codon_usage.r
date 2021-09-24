@@ -15,18 +15,18 @@ source("../../2021-08-26_save_pptx/scripts/save_pptx.r")
 # input data --------------------------------------------------------------
 meta_data_raw <- read_csv("../data/df_metadata.csv")
 cds_omsn <- readDNAStringSet("../data/seq_spike.fasta")
+seq_leopard_fix <- readDNAStringSet("../data/校正-S gene-Asian leopard cat coronavirus (EF584908).fas")
+
+width(cds_omsn[grepl("F230", names(cds_omsn))]) %% 3
+cds_omsn[grepl("F230", names(cds_omsn))] <- seq_leopard_fix
+width(cds_omsn[grepl("F230", names(cds_omsn))]) %% 3
+
 cds_omsn <- cds_omsn[-1]
-width(cds_omsn)%%3
+check <- width(cds_omsn)%%3
+names(check) <- names(cds_omsn)
 # cds_omsn <- readDNAStringSet("../data/seq_spike_aln.fasta") # please make sure that the alignment is correct in terms of codon position
 
-colors <- c("#8f45b5",
-"#aada53",
-"#9887bc",
-"#5fa15d",
-"#c54b54",
-"#91c2bb",
-"#4c393f",
-"#bc8e4e")
+colors <- c("#8f45b5", "#aada53", "#9887bc", "#5fa15d", "#c54b54", "#91c2bb", "#4c393f", "#bc8e4e")
 names(colors) <- unique(meta_data_raw$Host_sim)
 meta_data_raw$color <- colors[match(meta_data_raw$Host_sim, names(colors))]
 
